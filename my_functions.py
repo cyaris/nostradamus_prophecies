@@ -22,11 +22,24 @@ def replace(string, substitutions):
         string = deepcopy(([s.replace(list(substitutions.keys())[i], list(substitutions.values())[i]) for s in string]))
     return string
 
-def dtm_unigram(vectorizer, token_df, df_input, min_df):
-    stop_word_list = ['able', 'according', 'aix', 'la', 'dy', 'having', 'l', 'le',
-                  'li', 'o', 's', "’", 'very', 'like', 'sens', 'did', "'",
-                  "'a", "'i", "'k", "'l", "'o", "'s", ',', '[', ']']
-    stop_words = text.ENGLISH_STOP_WORDS.union(stop_word_list)
+def tokenized_df_lookup(token_list):
+    df = pd.DataFrame(token_list)
+    df[1] = [item[1] for item in df[0].str.split(', ')]
+    df[0] = [item[0] for item in df[0].str.split(', ')]
+    df.rename({0: 'stem', 1: 'original_word'}, axis = 1, inplace = True)
+    df['original_word_copy'] = deepcopy(df['original_word'])
+    aggregations = {
+        'original_word_copy': 'count'
+        }
+    df = deepcopy(df.groupby(['stem', 'original_word']).agg(aggregations).reset_index())
+    duplicate_list = ['stem']
+    df.drop_duplicates(subset = duplicate_list, keep = 'first', inplace = True)
+    df = df.reset_index()
+    df.drop('index', axis = 1, inplace = True)
+    return df
+
+def dtm_unigram(vectorizer, token_df, df_input, stop_word_input, min_df):
+    stop_words = text.ENGLISH_STOP_WORDS.union(stop_word_input)
     vec = vectorizer(tokenizer = LemmaStemTokenizer(),
                       strip_accents = 'unicode',
                       stop_words = stop_words,
@@ -40,11 +53,8 @@ def dtm_unigram(vectorizer, token_df, df_input, min_df):
                 dtm_df.rename({column: token_df['original_word'][i]}, axis = 1, inplace = True)
     return X, dtm_df
 
-def dtm_bigram(vectorizer, token_df, df_input, min_df):
-    stop_word_list = ['able', 'according', 'aix', 'la', 'dy', 'having', 'l', 'le',
-                  'li', 'o', 's', "’", 'very', 'like', 'sens', 'did', "'",
-                  "'a", "'i", "'k", "'l", "'o", "'s", ',', '[', ']']
-    stop_words = text.ENGLISH_STOP_WORDS.union(stop_word_list)
+def dtm_bigram(vectorizer, token_df, df_input, stop_word_input, min_df):
+    stop_words = text.ENGLISH_STOP_WORDS.union(stop_word_input)
     vec = vectorizer(tokenizer = LemmaStemTokenizer(),
                      ngram_range = (2, 2),
                       strip_accents = 'unicode',
