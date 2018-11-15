@@ -1,10 +1,14 @@
 import pandas as pd
 import re
 from copy import deepcopy
+from collections import defaultdict
 from sklearn.feature_extraction import text
 from nltk import word_tokenize 
 from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.stem.snowball import SnowballStemmer
+import pyLDAvis
+import pyLDAvis.gensim
+from gensim.corpora.dictionary import Dictionary
 
 class LemmaStemTokenizer(object):
     def __init__(self):
@@ -38,6 +42,13 @@ def tokenized_df_lookup(token_list):
     df.drop('index', axis = 1, inplace = True)
     return df
 
+def id2word_rename(id2word_input, token_df):
+    for b, word in enumerate(id2word_input.values()):
+        for i, stem_index in enumerate(token_df['stem']):
+            if word == stem_index:
+                id2word_input[list(id2word_input.keys())[b]] = token_df['original_word'][i]
+    return id2word_input
+
 def dtm_unigram(vectorizer, token_df, df_input, stop_word_input, min_df):
     stop_words = text.ENGLISH_STOP_WORDS.union(stop_word_input)
     vec = vectorizer(tokenizer = LemmaStemTokenizer(),
@@ -51,7 +62,7 @@ def dtm_unigram(vectorizer, token_df, df_input, stop_word_input, min_df):
         for i, stem_index in enumerate(token_df['stem']):
             if column == stem_index:
                 dtm_df.rename({column: token_df['original_word'][i]}, axis = 1, inplace = True)
-    return X, dtm_df
+    return X, dtm_df, vec
 
 def dtm_bigram(vectorizer, token_df, df_input, stop_word_input, min_df):
     stop_words = text.ENGLISH_STOP_WORDS.union(stop_word_input)
@@ -76,7 +87,24 @@ def dtm_bigram(vectorizer, token_df, df_input, stop_word_input, min_df):
                 column_df[1].loc[i] = token_df['original_word'][z]
     for i, column in enumerate(dtm_df.columns):
         dtm_df.rename({column: column_df[0][i] + " " + column_df[1][i]}, axis = 1, inplace = True)
-    return X, dtm_df
+    return X, dtm_df, vec
+
+def topics_df_func(lda_doc_input):
+    topics_list = []
+    for document in lda_doc_input:
+        document_dict = defaultdict(list)
+        for topic in document:
+            document_dict[topic[0]] = topic[1]
+        topics_list.append(document_dict)
+    topics_df = pd.DataFrame(topics_list)
+    topics_df.fillna(0, inplace = True)
+    return topics_df
+
+def pyLDAvis_plot(lda_input, id2word_input, corpus_input):
+    dic_input = dict((v, k) for k, v in id2word_input.items())
+    dic = Dictionary([dic_input])
+    data = pyLDAvis.gensim.prepare(lda_input, corpus_input, dic)
+    return data
 
 def display_topics(model, feature_names, no_top_words, topic_names = None):
     for ix, topic in enumerate(model.components_):
